@@ -2,9 +2,21 @@ import streamlit as st
 import requests
 import pandas as pd
 
+st.set_page_config(page_title="Réservations des box", layout="centered")
+
+# Authentification
+def check_auth():
+    st.sidebar.title("🔐 Connexion")
+    username = st.sidebar.text_input("Nom d'utilisateur")
+    password = st.sidebar.text_input("Mot de passe", type="password")
+    return username == "admin" and password == "admin123"
+
+if not check_auth():
+    st.warning("Veuillez vous authentifier pour accéder à l'application.")
+    st.stop()
+
 API_URL = "http://localhost:8000"
 
-st.set_page_config(page_title="Réservations des box", layout="centered")
 st.title("📅 Gestion des réservations et absences")
 
 # Ajouter une réservation

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 import openai
@@ -139,6 +139,11 @@ def report_absence_manual(data: Absence):
 
 @app.get("/absences")
 def get_absences():
-    cursor.execute("SELECT name, date FROM absences ORDER BY date, name")
-    results = cursor.fetchall()
-    return [{"name": r[0], "date": r[1].isoformat()} for r in results]
+    try:
+        cursor.execute("SELECT name, date FROM absences ORDER BY date, name")
+        results = cursor.fetchall()
+        return [{"name": r[0], "date": r[1].isoformat()} for r in results]
+    except Exception as e:
+        conn.rollback() 
+        print("Erreur dans get_absences :", e)
+        raise HTTPException(status_code=500, detail="Erreur lors de la récupération des absences") from e
