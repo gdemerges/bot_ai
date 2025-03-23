@@ -126,6 +126,8 @@ def report_absence_logic(name: str, date: str):
 # Endpoint pour voir toutes les réservations (Streamlit)
 @app.get("/reservations")
 def get_reservations():
+    if cursor is None:
+        raise HTTPException(status_code=500, detail="Base de données non accessible")
     cursor.execute("SELECT date, hour, reserved_by FROM reservations ORDER BY date, hour")
     results = cursor.fetchall()
     return [

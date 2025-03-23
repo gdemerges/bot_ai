@@ -42,6 +42,13 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
+      - name: 🚧 Initialiser la base de données PostgreSQL
+        env:
+          PGPASSWORD: test_password
+        run: |
+          sudo apt-get install -y postgresql-client
+          psql -h localhost -U test_user -d test_db -f sql/init_db.sql
+
       - name: 🚀 Exécuter les tests avec PostgreSQL temporaire
         env:
           POSTGRES_DB: test_db
