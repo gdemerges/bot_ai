@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+openai
+psycopg2-binary
+python-dotenv
+pydantic
+requests
+discord.py
+streamlit
+asyncpraw
+pandas
