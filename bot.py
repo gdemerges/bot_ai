@@ -75,7 +75,7 @@ async def on_message(message):
                 response = requests.post(API_URL, json={
                     "message": question,
                     "user_id": str(message.author.id) 
-                }, timeout=10)
+                }, timeout=20)
                 if response.status_code == 200:
                     result = response.json().get("response", "Aucune réponse.")
                     await message.channel.send(f"{result}")

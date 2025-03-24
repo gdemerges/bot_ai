@@ -58,16 +58,9 @@ class Absence(BaseModel):
 # Endpoint principal : question posée à l'agent
 @app.post("/ask_agent")
 async def ask_agent(req: AskRequest):
-    cursor.execute("SELECT thread_id FROM user_threads WHERE user_id = %s", (req.user_id,))
-    result = cursor.fetchone()
+    thread = openai.beta.threads.create()
+    thread_id = thread.id
 
-    if result:
-        thread_id = result[0]
-    else:
-        thread = openai.beta.threads.create()
-        thread_id = thread.id
-        cursor.execute("INSERT INTO user_threads (user_id, thread_id) VALUES (%s, %s)", (req.user_id, thread_id))
-        conn.commit()
     openai.beta.threads.messages.create(
         thread_id=thread_id,
         role="user",
@@ -75,7 +68,7 @@ async def ask_agent(req: AskRequest):
     )
     run = openai.beta.threads.runs.create(
         thread_id=thread_id,
-        assistant_id=ASSISTANT_ID
+        assistant_id=ASSISTANT_ID,
     )
 
     while run.status != "completed":
