@@ -56,6 +56,13 @@ async def on_ready():
 async def on_message(message):
     if message.author == bot.user:
         return
+    
+    if (str(message.author.id) == "1192414156243091609" and
+        message.guild and str(message.guild.id) == "1200438506762293300"):
+        try:
+            await message.add_reaction("❤️")
+        except discord.HTTPException as e:
+            print(f"Erreur lors de l'ajout de la réaction : {e}")
 
     is_dm = message.guild is None
     is_mention = bot.user.mention in message.content

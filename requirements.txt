@@ -9,3 +9,5 @@ discord.py
 streamlit
 asyncpraw
 pandas
+langchain
+pypdf
