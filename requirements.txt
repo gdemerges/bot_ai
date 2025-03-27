@@ -11,3 +11,4 @@ asyncpraw
 pandas
 langchain
 pypdf
+pytest
