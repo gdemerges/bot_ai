@@ -15,7 +15,7 @@ if not check_auth():
     st.warning("Veuillez vous authentifier pour accéder à l'application.")
     st.stop()
 
-API_URL = "http://localhost:8000"
+API_URL = "http://api:8000"
 
 st.title("📅 Gestion des réservations et absences")
 
