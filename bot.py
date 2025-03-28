@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-API_URL = "http://localhost:8000/ask_agent"
+API_URL = "http://api:8000/ask_agent"
 
 if not TOKEN:
     raise ValueError("DISCORD_BOT_TOKEN non défini !")
@@ -22,11 +22,23 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 subreddit_name = "Hellfest"
+
+SEEN_FILE = "seen_posts.txt"
 seen_posts = set()
 
+def load_seen_posts():
+    if os.path.exists(SEEN_FILE):
+        with open(SEEN_FILE, "r") as f:
+            for line in f:
+                seen_posts.add(line.strip())
+
+def save_seen_post(post_id):
+    with open(SEEN_FILE, "a") as f:
+        f.write(f"{post_id}\n")
+
 async def check_reddit():
-    """Tâche de fond qui vérifie les nouveaux posts sur r/Hellfest"""
     await bot.wait_until_ready()
+    load_seen_posts()
     user = await bot.fetch_user(282150973810540566)
 
     try:
@@ -42,7 +54,8 @@ async def check_reddit():
                     message = f"🚨 Nouveau post sur r/{subreddit_name} : **{submission.title}**\n🔗 {submission.url}"
                     await user.send(message)
                     seen_posts.add(submission.id)
-            await asyncio.sleep(60)
+                    save_seen_post(submission.id)
+        await asyncio.sleep(60)
     except (asyncpraw.exceptions.PRAWException, httpx.RequestError) as e:
         print(f"Erreur Reddit : {e}")
         await asyncio.sleep(60)
