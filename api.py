@@ -60,6 +60,10 @@ class Message(BaseModel):
     message: str
     user_id: str
     history: List[Dict[str, str]] = []
+    
+@app.get("/")
+def root():
+    return {"message": "API bot IA en ligne 👋"}
 
 # Endpoint principal : question posée à l'agent
 @app.post("/ask_agent")
