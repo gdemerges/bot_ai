@@ -55,10 +55,9 @@ async def check_reddit():
                     await user.send(message)
                     seen_posts.add(submission.id)
                     save_seen_post(submission.id)
-        await asyncio.sleep(60)
     except (asyncpraw.exceptions.PRAWException, httpx.RequestError) as e:
         print(f"Erreur Reddit : {e}")
-        await asyncio.sleep(60)
+    await asyncio.sleep(60)
 
 @bot.event
 async def on_ready():
@@ -70,13 +69,6 @@ async def on_message(message):
     if message.author == bot.user:
         return
     
-    if (str(message.author.id) == "1192414156243091609" and
-        message.guild and str(message.guild.id) == "1200438506762293300"):
-        try:
-            await message.add_reaction("❤️")
-        except discord.HTTPException as e:
-            print(f"Erreur lors de l'ajout de la réaction : {e}")
-
     is_dm = message.guild is None
     is_mention = bot.user.mention in message.content
 
@@ -91,14 +83,29 @@ async def on_message(message):
             return
 
         async with message.channel.typing():
+            historique = []
+            async for msg in message.channel.history(limit=15, oldest_first=True):
+                if not msg.content:
+                    continue
+                role = "assistant" if msg.author == bot.user else "user"
+                historique.append({
+                    "author": msg.author.name,
+                    "content": msg.content,
+                    "role": role
+                })
+
             try:
-                response = requests.post(API_URL, json={
+                payload = {
                     "message": question,
-                    "user_id": str(message.author.id) 
-                }, timeout=20)
+                    "user_id": str(message.author.id),
+                    "history": historique  
+                }
+
+                response = requests.post(API_URL, json=payload, timeout=20)
+
                 if response.status_code == 200:
                     result = response.json().get("response", "Aucune réponse.")
-                    await message.channel.send(f"{result}")
+                    await message.channel.send(result)
                 else:
                     await message.channel.send("❌ Erreur API.")
             except Exception as e:

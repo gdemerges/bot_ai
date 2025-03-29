@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
+from typing import List, Dict
 from typing import Optional
 import openai
 import os
@@ -54,18 +55,31 @@ class Reservation(BaseModel):
 class Absence(BaseModel):
     name: str
     date: str
+    
+class Message(BaseModel):
+    message: str
+    user_id: str
+    history: List[Dict[str, str]] = []
 
 # Endpoint principal : question posée à l'agent
 @app.post("/ask_agent")
-async def ask_agent(req: AskRequest):
+async def ask_agent(req: Message):
     thread = openai.beta.threads.create()
     thread_id = thread.id
+
+    for hist_msg in req.history:
+        openai.beta.threads.messages.create(
+            thread_id=thread_id,
+            role=hist_msg.get("role", "user"),
+            content=f"{hist_msg['author']}: {hist_msg['content']}"
+        )
 
     openai.beta.threads.messages.create(
         thread_id=thread_id,
         role="user",
         content=req.message
     )
+
     run = openai.beta.threads.runs.create(
         thread_id=thread_id,
         assistant_id=ASSISTANT_ID,
@@ -144,6 +158,7 @@ def get_absences():
         results = cursor.fetchall()
         return [{"name": r[0], "date": r[1].isoformat()} for r in results]
     except Exception as e:
-        conn.rollback() 
+        if conn:
+            conn.rollback() 
         print("Erreur dans get_absences :", e)
         raise HTTPException(status_code=500, detail="Erreur lors de la récupération des absences") from e

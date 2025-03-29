@@ -7,6 +7,9 @@ services:
       - .:/app
     env_file:
       - .env
+    depends_on:
+      db:
+        condition: service_healthy
 
   streamlit:
     build: .
@@ -22,7 +25,9 @@ services:
 
   bot:
     build: .
-    command: python bot.py
+    command: python bot.py 
+    volumes:
+      - ./seen_posts.txt:/app/seen_posts.txt
     env_file:
       - .env
     depends_on:
@@ -34,12 +39,17 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: mydb
+      POSTGRES_DB: agent_simplon
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./sql/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pgdata:
