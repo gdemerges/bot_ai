@@ -5,7 +5,9 @@ import os
 import asyncpraw
 import asyncio
 import httpx
+import aiofiles
 from dotenv import load_dotenv
+from openai import OpenAI
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -73,6 +75,28 @@ async def on_message(message):
     is_mention = bot.user.mention in message.content
 
     if is_dm or is_mention:
+        if message.attachments:
+            await message.channel.send("📁 Fichier reçu. Traitement en cours...")
+ 
+            for attachment in message.attachments:
+                file_path = f"/tmp/{attachment.filename}"
+                await attachment.save(file_path)
+ 
+                try:
+                    client = OpenAI()
+                    vectorstore_id = os.getenv("OPENAI_VECTORSTORE_ID")
+                    with open(file_path, "rb") as f:
+                        client.vector_stores.file_batches.upload_and_poll(
+                            vector_store_id=vectorstore_id,
+                            files=[f]
+                        )
+                    await message.channel.send(f"✅ Fichier ajouté au vector store : {attachment.filename}")
+                except Exception as e:
+                    await message.channel.send(f"❌ Erreur lors de l'ajout du fichier : {e}")
+                finally:
+                    os.remove(file_path)
+            return
+ 
         if not is_dm:
             question = message.content.replace(bot.user.mention, "").strip()
         else:

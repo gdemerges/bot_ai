@@ -1,6 +1,9 @@
 import streamlit as st
 import requests
 import pandas as pd
+import os
+import openai
+from openai import OpenAI
 
 st.set_page_config(page_title="Réservations des box", layout="centered")
 
@@ -83,3 +86,49 @@ if response_abs.status_code == 200:
         st.info("Aucune absence enregistrée pour le moment.")
 else:
     st.error("Erreur lors de la récupération des absences.")
+
+# Ajouter un document dans le vector store
+st.header("📄 Ajouter un document à la base de connaissances")
+uploaded_file = st.file_uploader("Choisir un fichier", type=["pdf", "docx", "txt"])
+
+if uploaded_file is not None:
+    st.info("📤 Téléversement en cours...")
+    try:
+        client = OpenAI()
+
+        with open(f"/tmp/{uploaded_file.name}", "wb") as f:
+            f.write(uploaded_file.getbuffer())
+
+        vectorstore_id = os.getenv("OPENAI_VECTORSTORE_ID")
+        with open(f"/tmp/{uploaded_file.name}", "rb") as f:
+            client.vector_stores.file_batches.upload_and_poll(
+                vector_store_id=vectorstore_id,
+                files=[f]
+            )
+        st.success(f"✅ Fichier '{uploaded_file.name}' ajouté au vector store.")
+    except Exception as e:
+        st.error(f"❌ Erreur lors de l'ajout : {e}")
+
+# Afficher les fichiers présents dans le vector store
+st.header("📂 Fichiers dans le vector store")
+try:
+    vectorstore_id = os.getenv("OPENAI_VECTORSTORE_ID")
+    client = OpenAI()
+    file_list = client.vector_stores.files.list(vector_store_id=vectorstore_id)
+    files = list(file_list)
+
+    if files:
+        file_data = []
+        for f in files:
+            full_file = client.files.retrieve(f.id)
+            file_data.append({
+                "Nom du fichier": full_file.filename,
+                "ID": full_file.id,
+                "Statut": f.status
+            })
+        df_files = pd.DataFrame(file_data)
+        st.dataframe(df_files)
+    else:
+        st.info("Aucun fichier actuellement dans le vector store.")
+except Exception as e:
+    st.error(f"❌ Erreur lors de la récupération des fichiers : {e}")

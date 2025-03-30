@@ -9,6 +9,10 @@ import psycopg2
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from openai import OpenAI
+from prometheus_fastapi_instrumentator import Instrumentator
+
+client = OpenAI()
 load_dotenv()
 
 # Initialisation FastAPI
@@ -16,7 +20,6 @@ app = FastAPI()
  
 # Monitoring via Prometheus
 try:
-    from prometheus_fastapi_instrumentator import Instrumentator
     instrumentator = Instrumentator()
     instrumentator.instrument(app).expose(app, endpoint="/metrics")
 except ImportError:
