@@ -12,3 +12,4 @@ pandas
 langchain
 pypdf
 pytest
+prometheus-fastapi-instrumentator

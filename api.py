@@ -13,6 +13,14 @@ load_dotenv()
 
 # Initialisation FastAPI
 app = FastAPI()
+ 
+# Monitoring via Prometheus
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+    instrumentator = Instrumentator()
+    instrumentator.instrument(app).expose(app, endpoint="/metrics")
+except ImportError:
+    print("prometheus_fastapi_instrumentator is not installed. Monitoring not enabled.")
 
 # CORS pour Streamlit
 app.add_middleware(
