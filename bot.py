@@ -12,6 +12,7 @@ load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 API_URL = "http://api:8000/ask_agent"
+REDDIT_INTERVAL = int(os.getenv("REDDIT_INTERVAL", "60"))
 
 if not TOKEN:
     raise ValueError("DISCORD_BOT_TOKEN non défini !")
@@ -43,23 +44,25 @@ async def check_reddit():
     load_seen_posts()
     user = await bot.fetch_user(282150973810540566)
 
-    try:
-        reddit = asyncpraw.Reddit(
-            client_id="Wv9IGH0gvCczyoh9n49tlg",
-            client_secret="z2mqyGPAhCkBGnZI9Q8q9ZCgr3Kw2Q",
-            user_agent="hellfest/1.0 (by u/Sagi1308)"
-        )
-        async with reddit:
-            subreddit = await reddit.subreddit(subreddit_name)
-            async for submission in subreddit.new(limit=3):
-                if submission.id not in seen_posts:
-                    message = f"🚨 Nouveau post sur r/{subreddit_name} : **{submission.title}**\n🔗 {submission.url}"
-                    await user.send(message)
-                    seen_posts.add(submission.id)
-                    save_seen_post(submission.id)
-    except (asyncpraw.exceptions.PRAWException, httpx.RequestError) as e:
-        print(f"Erreur Reddit : {e}")
-    await asyncio.sleep(60)
+    while not bot.is_closed():
+        try:
+            reddit = asyncpraw.Reddit(
+                client_id="Wv9IGH0gvCczyoh9n49tlg",
+                client_secret="z2mqyGPAhCkBGnZI9Q8q9ZCgr3Kw2Q",
+                user_agent="hellfest/1.0 (by u/Sagi1308)"
+            )
+            async with reddit:
+                subreddit = await reddit.subreddit(subreddit_name)
+                async for submission in subreddit.new(limit=3):
+                    if submission.id not in seen_posts:
+                        message = f"🚨 Nouveau post sur r/{subreddit_name} : **{submission.title}**\n🔗 {submission.url}"
+                        await user.send(message)
+                        seen_posts.add(submission.id)
+                        save_seen_post(submission.id)
+        except (asyncpraw.exceptions.PRAWException, httpx.RequestError) as e:
+            print(f"Erreur Reddit : {e}")
+        interval = int(os.getenv("REDDIT_INTERVAL", "60"))
+        await asyncio.sleep(interval)
 
 @bot.event
 async def on_ready():
