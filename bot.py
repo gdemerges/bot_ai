@@ -47,10 +47,10 @@ async def check_reddit():
     while not bot.is_closed():
         try:
             reddit = asyncpraw.Reddit(
-                client_id="Wv9IGH0gvCczyoh9n49tlg",
-                client_secret="z2mqyGPAhCkBGnZI9Q8q9ZCgr3Kw2Q",
-                user_agent="hellfest/1.0 (by u/Sagi1308)"
-            )
+                    client_id=os.getenv("REDDIT_CLIENT_ID"),
+                    client_secret=os.getenv("REDDIT_CLIENT_SECRET"),
+                    user_agent="hellfest/1.0 (by u/Sagi1308)"
+                )
             async with reddit:
                 subreddit = await reddit.subreddit(subreddit_name)
                 async for submission in subreddit.new(limit=3):
