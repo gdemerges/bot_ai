@@ -79,25 +79,30 @@ def root():
 # Endpoint principal : question posée à l'agent
 @app.post("/ask_agent")
 async def ask_agent(req: Message):
-    thread = openai.beta.threads.create()
+    thread = openai.beta.threads.create(
+        metadata={"user_id": req.user_id}
+    )
     thread_id = thread.id
 
     for hist_msg in req.history:
         openai.beta.threads.messages.create(
             thread_id=thread_id,
             role=hist_msg.get("role", "user"),
-            content=f"{hist_msg['author']}: {hist_msg['content']}"
+            content=hist_msg["content"],
+            metadata={"author": hist_msg["author"]}
         )
 
     openai.beta.threads.messages.create(
         thread_id=thread_id,
         role="user",
-        content=req.message
+        content=req.message,
+        metadata={"author": req.user_id}
     )
 
     run = openai.beta.threads.runs.create(
         thread_id=thread_id,
         assistant_id=ASSISTANT_ID,
+        metadata={"user_id": req.user_id}
     )
 
     while run.status != "completed":
@@ -125,7 +130,11 @@ async def ask_agent(req: Message):
             )
 
     messages = openai.beta.threads.messages.list(thread_id=thread_id)
-    return {"response": messages.data[0].content[0].text.value}
+    return {
+        "response": messages.data[0].content[0].text.value,
+        "thread_id": thread_id,
+        "turn_id": messages.data[0].id
+    }
 
 # Logic métier pour réserver un box
 def book_box_logic(date: str, hour: str, reserved_by: str = "Agent"):

@@ -131,8 +131,11 @@ async def on_message(message):
                 response = requests.post(API_URL, json=payload, timeout=20)
 
                 if response.status_code == 200:
-                    result = response.json().get("response", "Aucune réponse.")
-                    await message.channel.send(result)
+                    data = response.json()
+                    result = data.get("response", "Aucune réponse.")
+                    thread_id = data.get("thread_id", "inconnu")
+                    turn_id = data.get("turn_id", "inconnu")
+                    await message.channel.send(f"{result}\n\n🧠 Contexte: `thread_id={thread_id}`, `turn_id={turn_id}`")
                 else:
                     await message.channel.send("❌ Erreur API.")
             except Exception as e:
