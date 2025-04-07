@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from openai import OpenAI
 from prometheus_fastapi_instrumentator import Instrumentator
+from dateutil import parser
 
 client = OpenAI()
 load_dotenv()
@@ -116,7 +117,11 @@ async def ask_agent(req: Message):
                 if func_name == "book_box":
                     result = book_box_logic(**arguments)
                 elif func_name == "report_absence":
-                    result = report_absence_logic(**arguments)
+                    try:
+                        parsed_date = parser.parse(arguments["date"]).date().isoformat()
+                        result = report_absence_logic(name=arguments["name"], date=parsed_date)
+                    except Exception as e:
+                        result = f"Erreur dans la compréhension de la date : {e}"
                 outputs.append({"tool_call_id": call.id, "output": result})
             run = openai.beta.threads.runs.submit_tool_outputs(
                 thread_id=thread_id,
@@ -143,7 +148,7 @@ def book_box_logic(date: str, hour: str, reserved_by: str = "Agent"):
         VALUES (%s, %s, %s)
     """, (date, hour, reserved_by))
     conn.commit()
-    return f"Box réservé le {date} à {hour} par {reserved_by}."
+    return "done"
 
 # Logic métier pour déclarer une absence
 def report_absence_logic(name: str, date: str):
@@ -152,7 +157,7 @@ def report_absence_logic(name: str, date: str):
         VALUES (%s, %s)
     """, (name, date))
     conn.commit()
-    return f"Absence enregistrée pour {name} le {date}."
+    return "done"
 
 # Endpoint pour voir toutes les réservations (Streamlit)
 @app.get("/reservations")

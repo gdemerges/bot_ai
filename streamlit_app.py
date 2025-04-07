@@ -4,18 +4,56 @@ import pandas as pd
 import os
 import openai
 from openai import OpenAI
+import jwt
+import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
+JWT_SECRET = os.getenv("JWT_SECRET")
 
 st.set_page_config(page_title="Réservations des box", layout="centered")
 
-# Authentification
-def check_auth():
+def generate_token(username: str):
+    payload = {
+        "user": username,
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+
+def verify_token(token: str):
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        return payload["user"]
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return None
+
+def login_form():
     st.sidebar.title("🔐 Connexion")
     username = st.sidebar.text_input("Nom d'utilisateur")
     password = st.sidebar.text_input("Mot de passe", type="password")
-    return username == "admin" and password == "admin123"
+    login_btn = st.sidebar.button("Se connecter")
+
+    if login_btn:
+        valid_username = os.getenv("AUTH_USERNAME")
+        valid_password = os.getenv("AUTH_PASSWORD")
+        if username == valid_username and password == valid_password:
+            token = generate_token(username)
+            st.session_state["auth_token"] = token
+            st.success("Connexion réussie ✅")
+            st.rerun()
+        else:
+            st.error("Identifiants invalides ❌")
+
+def check_auth():
+    token = st.session_state.get("auth_token")
+    if token:
+        user = verify_token(token)
+        if user:
+            return True
+    return False
 
 if not check_auth():
-    st.warning("Veuillez vous authentifier pour accéder à l'application.")
+    login_form()
     st.stop()
 
 API_URL = "http://api:8000"
@@ -132,3 +170,7 @@ try:
         st.info("Aucun fichier actuellement dans le vector store.")
 except Exception as e:
     st.error(f"❌ Erreur lors de la récupération des fichiers : {e}")
+
+if st.sidebar.button("🚪 Se déconnecter"):
+    st.session_state.pop("auth_token", None)
+    st.experimental_rerun()
