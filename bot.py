@@ -9,6 +9,7 @@ import aiofiles
 from dotenv import load_dotenv
 from openai import OpenAI
 load_dotenv()
+from config_loader import *
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 API_URL = "http://api:8000/ask_agent"
@@ -128,7 +129,7 @@ async def on_message(message):
                     "history": historique  
                 }
 
-                response = requests.post(API_URL, json=payload, timeout=20)
+                response = requests.post(API_URL, json=payload, timeout=100)
 
                 if response.status_code == 200:
                     result = response.json().get("response", "Aucune réponse.")
@@ -137,5 +138,22 @@ async def on_message(message):
                     await message.channel.send("❌ Erreur API.")
             except Exception as e:
                 await message.channel.send(f"❌ Erreur : {e}")
+
+@bot.command(name="imagine")
+async def imagine(ctx, *, prompt: str):
+    await ctx.send(f"🎨 Génération de l’image pour : `{prompt}`...")
+
+    try:
+        client = OpenAI()
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=prompt,
+            size="1024x1024",
+            n=1
+        )
+        image_url = response.data[0].url
+        await ctx.send(f"🖼️ Voici ton image : {image_url}")
+    except Exception as e:
+        await ctx.send(f"❌ Erreur lors de la génération de l’image : {e}")
 
 bot.run(TOKEN)

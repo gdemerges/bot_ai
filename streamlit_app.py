@@ -7,6 +7,7 @@ from openai import OpenAI
 import jwt
 import datetime
 from dotenv import load_dotenv
+from config_loader import *
 
 load_dotenv()
 JWT_SECRET = os.getenv("JWT_SECRET")

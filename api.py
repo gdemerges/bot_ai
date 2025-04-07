@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from prometheus_fastapi_instrumentator import Instrumentator
 from dateutil import parser
+import time
+from config_loader import *
 
 client = OpenAI()
 load_dotenv()
@@ -131,6 +133,17 @@ async def ask_agent(req: Message):
                         result = report_absence_logic(name=arguments["name"], date=parsed_date)
                     except Exception as e:
                         result = f"Erreur dans la compréhension de la date : {e}"
+                elif func_name == "generate_image":
+                    try:
+                        image = client.images.generate(
+                            model="dall-e-3",
+                            prompt=arguments["prompt"],
+                            size="1024x1024",
+                            n=1
+                        )
+                        result = image.data[0].url
+                    except Exception as e:
+                        result = f"Erreur DALL·E : {e}"
                 outputs.append({"tool_call_id": call.id, "output": result})
             run = openai.beta.threads.runs.submit_tool_outputs(
                 thread_id=thread_id,
@@ -138,6 +151,7 @@ async def ask_agent(req: Message):
                 tool_outputs=outputs
             )
         else:
+            time.sleep(1)
             run = openai.beta.threads.runs.retrieve(
                 thread_id=thread_id,
                 run_id=run.id
