@@ -19,11 +19,11 @@ def mock_db_connection(monkeypatch):
     monkeypatch.setattr("api.cursor", mock_cursor)
 
 def test_read_reservations():
-    response = client.get("/reservations")
+    response = client.get("/list_reservations")
     assert response.status_code == 200
 
 def test_read_absences():
-    response = client.get("/absences")
+    response = client.get("/list_absences")
     assert response.status_code == 200
 
 def test_root():
