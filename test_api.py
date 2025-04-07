@@ -1,8 +1,22 @@
 from fastapi.testclient import TestClient
 from api import app
+from unittest.mock import MagicMock, patch
+from fastapi.testclient import TestClient
 import pytest
 
 client = TestClient(app)
+
+@pytest.fixture(autouse=True)
+def mock_db_connection(monkeypatch):
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    
+    mock_conn.cursor.return_value = mock_cursor
+    mock_cursor.fetchall.return_value = []
+    mock_cursor.fetchone.return_value = None
+    monkeypatch.setattr("api.get_db_connection", lambda: mock_conn)
+    monkeypatch.setattr("api.conn", mock_conn)
+    monkeypatch.setattr("api.cursor", mock_cursor)
 
 def test_read_reservations():
     response = client.get("/reservations")

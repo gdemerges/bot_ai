@@ -15,6 +15,7 @@ from dateutil import parser
 from datetime import datetime
 import re
 from datetime import timedelta
+from db import get_db_connection
 
 client = OpenAI()
 load_dotenv()
@@ -44,24 +45,7 @@ ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
 
 # Connexion PostgreSQL
 try:
-    env = os.getenv("ENV", "local")
-
-    if env == "azure":
-        conn = psycopg2.connect(
-            dbname=os.getenv("PGDATABASE"),
-            user=os.getenv("PGUSER"),
-            password=os.getenv("PGPASSWORD"),
-            host=os.getenv("PGHOST"),
-            port=os.getenv("PGPORT")
-        )
-    else:
-        conn = psycopg2.connect(
-            dbname=os.getenv("POSTGRES_DB"),
-            user=os.getenv("POSTGRES_USER"),
-            password=os.getenv("POSTGRES_PASSWORD"),
-            host=os.getenv("POSTGRES_HOST"),
-            port=os.getenv("POSTGRES_PORT")
-        )
+    conn = get_db_connection()
     cursor = conn.cursor()
 except Exception as e:
     print("Erreur connexion PostgreSQL :", e)
