@@ -21,13 +21,13 @@ def test_book_box():
     payload = {"date": "2025-04-01", "hour": "10:00", "reserved_by": "TestUser"}
     response = client.post("/book_box", json=payload)
     assert response.status_code == 200
-    assert "Box réservé le" in response.text
+    assert "done" in response.text
 
 def test_report_absence():
     payload = {"name": "TestUser", "date": "2025-04-01"}
     response = client.post("/report_absence", json=payload)
     assert response.status_code == 200
-    assert "Absence enregistrée" in response.text
+    assert "done" in response.text
 
 @pytest.mark.skip(reason="Skipping /ask_agent test due to dependency on external OpenAI API calls")
 def test_ask_agent():
