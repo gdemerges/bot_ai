@@ -15,6 +15,7 @@ from dateutil import parser
 from datetime import datetime
 import re
 from datetime import timedelta
+import requests
 from db import get_db_connection
 
 client = OpenAI()
@@ -194,13 +195,14 @@ async def ask_agent(req: Message):
                         hour=arguments.get("hour"),
                         reserved_by=arguments.get("reserved_by")
                     )["message"]
-
                 elif func_name == "update_absence":
                     result = update_absence(
                         abs_id=int(arguments["abs_id"]),
                         name=arguments.get("name"),
                         date=arguments.get("date")
                     )["message"]
+                elif func_name == "search_brave":
+                    result = search_brave(arguments["query"])
 
                 outputs.append({"tool_call_id": call.id, "output": result})
             run = openai.beta.threads.runs.submit_tool_outputs(
@@ -332,3 +334,21 @@ def update_absence(abs_id: int, name: Optional[str] = None, date: Optional[str] 
     cursor.execute(query, values)
     conn.commit()
     return {"message": "Absence mise à jour avec succès"}
+
+def search_brave(query: str) -> str:
+    url = "https://api.search.brave.com/res/v1/web/search"
+    headers = {
+        "Accept": "application/json",
+        "X-Subscription-Token": os.getenv("BRAVE_API_KEY")
+    }
+    params = {"q": query, "count": 5}
+
+    response = requests.get(url, headers=headers, params=params)
+    data = response.json()
+
+    if "web" in data and "results" in data["web"]:
+        results = data["web"]["results"]
+        formatted = "\n".join([f"{r['title']} - {r['url']}" for r in results])
+        return formatted
+    else:
+        return "Aucun résultat trouvé via Brave Search."
