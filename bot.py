@@ -11,7 +11,7 @@ from openai import OpenAI
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-API_URL = "http://api:8000/ask_agent"
+API_URL = os.getenv("API_URL")
 REDDIT_INTERVAL = int(os.getenv("REDDIT_INTERVAL", "60"))
 
 if not TOKEN:
@@ -128,7 +128,8 @@ async def on_message(message):
                     "history": historique  
                 }
 
-                response = requests.post(API_URL, json=payload, timeout=20)
+                async with httpx.AsyncClient(timeout=100.0) as client:
+                    response = await client.post(API_URL, json=payload)
 
                 if response.status_code == 200:
                     result = response.json().get("response", "Aucune réponse.")

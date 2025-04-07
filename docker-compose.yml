@@ -7,6 +7,8 @@ services:
       - .:/app
     env_file:
       - .env
+    environment:
+      - ENV=azure
     depends_on:
       db:
         condition: service_healthy
@@ -20,6 +22,8 @@ services:
       - .:/app
     env_file:
       - .env
+    environment:
+      - ENV=azure
     depends_on:
       - api
 
@@ -30,6 +34,8 @@ services:
       - ./seen_posts.txt:/app/seen_posts.txt
     env_file:
       - .env
+    environment:
+      - ENV=azure
     depends_on:
       - api
 
