@@ -14,3 +14,10 @@ pypdf
 pytest
 prometheus-fastapi-instrumentator
 PyJWT
+psycopg 
+python-dateutil 
+databases 
+sqlalchemy 
+httpx 
+aiofiles
+asyncpg
