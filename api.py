@@ -77,13 +77,22 @@ class Message(BaseModel):
 def root():
     return {"message": "API bot IA en ligne 👋"}
 
+def get_or_create_thread(user_id: str) -> str:
+    cursor.execute("SELECT thread_id FROM user_threads WHERE user_id = %s", (user_id,))
+    result = cursor.fetchone()
+    if result:
+        return result[0]
+    else:
+        thread = openai.beta.threads.create(metadata={"user_id": user_id})
+        thread_id = thread.id
+        cursor.execute("INSERT INTO user_threads (user_id, thread_id) VALUES (%s, %s)", (user_id, thread_id))
+        conn.commit()
+        return thread_id
+
 # Endpoint principal : question posée à l'agent
 @app.post("/ask_agent")
 async def ask_agent(req: Message):
-    thread = openai.beta.threads.create(
-        metadata={"user_id": req.user_id}
-    )
-    thread_id = thread.id
+    thread_id = get_or_create_thread(req.user_id)
 
     for hist_msg in req.history:
         openai.beta.threads.messages.create(
