@@ -45,13 +45,19 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
 
 # Connexion PostgreSQL
-try:
-    conn = get_db_connection()
-    cursor = conn.cursor()
-except Exception as e:
-    print("Erreur connexion PostgreSQL :", e)
-    conn = None
-    cursor = None
+conn = None
+cursor = None
+
+def ensure_db_connection():
+    global conn, cursor
+    if conn is None or cursor is None:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+        except Exception as e:
+            print("Erreur reconnexion base :", e)
+            conn = None
+            cursor = None
 
 # Pydantic models
 class AskRequest(BaseModel):
@@ -77,6 +83,7 @@ def root():
     return {"message": "API bot IA en ligne 👋"}
 
 def get_or_create_thread(user_id: str) -> str:
+    ensure_db_connection()
     cursor.execute("SELECT thread_id FROM user_threads WHERE user_id = %s", (user_id,))
     result = cursor.fetchone()
     if result:
@@ -225,6 +232,7 @@ async def ask_agent(req: Message):
 
 # Logic métier pour réserver un box
 def book_box_logic(date: str, hour: str, reserved_by: str = "Agent"):
+    ensure_db_connection()
     cursor.execute("""
         INSERT INTO reservations (date, hour, reserved_by)
         VALUES (%s, %s, %s)
@@ -234,6 +242,7 @@ def book_box_logic(date: str, hour: str, reserved_by: str = "Agent"):
 
 # Logic métier pour déclarer une absence
 def report_absence_logic(name: str, date: str):
+    ensure_db_connection()
     cursor.execute("""
         INSERT INTO absences (name, date)
         VALUES (%s, %s)
@@ -244,6 +253,7 @@ def report_absence_logic(name: str, date: str):
 # Endpoint pour voir toutes les réservations (Streamlit)
 @app.get("/reservations")
 def get_reservations():
+    ensure_db_connection()
     if cursor is None:
         raise HTTPException(status_code=500, detail="Base de données non accessible")
     cursor.execute("SELECT date, hour, reserved_by FROM reservations ORDER BY date, hour")
@@ -264,6 +274,7 @@ def report_absence_manual(data: Absence):
 
 @app.get("/list_absences")
 def get_absences():
+    ensure_db_connection()
     try:
         cursor.execute("SELECT name, date FROM absences WHERE date >= CURRENT_DATE ORDER BY date, name")
         results = cursor.fetchall()
@@ -278,6 +289,7 @@ def get_absences():
 
 @app.get("/list_reservations")
 def list_reservations():
+    ensure_db_connection()
     try:
         cursor.execute("SELECT date, hour, reserved_by FROM reservations WHERE (date > CURRENT_DATE OR (date = CURRENT_DATE AND hour >= TO_CHAR(NOW(), 'HH24:MI'))) ORDER BY date, hour")
         results = cursor.fetchall()
@@ -292,6 +304,7 @@ def list_reservations():
 
 @app.put("/update_reservation")
 def update_reservation(res_id: int, date: Optional[str] = None, hour: Optional[str] = None, reserved_by: Optional[str] = None):
+    ensure_db_connection()
     updates = []
     values = []
 
@@ -316,6 +329,7 @@ def update_reservation(res_id: int, date: Optional[str] = None, hour: Optional[s
 
 @app.put("/update_absence")
 def update_absence(abs_id: int, name: Optional[str] = None, date: Optional[str] = None):
+    ensure_db_connection()
     updates = []
     values = []
 
