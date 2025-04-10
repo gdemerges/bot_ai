@@ -15,3 +15,9 @@ CREATE TABLE IF NOT EXISTS user_threads (
     user_id VARCHAR(255) PRIMARY KEY,
     thread_id VARCHAR(255) NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS user_profiles (
+    user_id VARCHAR PRIMARY KEY,
+    instructions TEXT
+);
+

@@ -12,7 +12,6 @@ load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 API_URL = os.getenv("API_URL")
-REDDIT_INTERVAL = int(os.getenv("REDDIT_INTERVAL", "60"))
 
 if not TOKEN:
     raise ValueError("DISCORD_BOT_TOKEN non défini !")
@@ -23,6 +22,7 @@ intents.guilds = True
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+
 
 subreddit_name = "Hellfest"
 
@@ -133,7 +133,10 @@ async def on_message(message):
 
                 if response.status_code == 200:
                     result = response.json().get("response", "Aucune réponse.")
-                    await message.channel.send(result)
+                    if is_dm:
+                        await message.channel.send(result)
+                    else:
+                        await message.reply(result)
                 else:
                     await message.channel.send("❌ Erreur API.")
             except Exception as e:

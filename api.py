@@ -91,6 +91,9 @@ def get_or_create_thread(user_id: str) -> str:
     else:
         thread = openai.beta.threads.create(metadata={"user_id": user_id})
         thread_id = thread.id
+        user_instructions = get_user_instructions(user_id)
+        # Les instructions spécifiques seront injectées plus tard dans run.create
+        pass
         cursor.execute("INSERT INTO user_threads (user_id, thread_id) VALUES (%s, %s)", (user_id, thread_id))
         conn.commit()
         return thread_id, True
@@ -141,6 +144,7 @@ async def ask_agent(req: Message):
                 metadata={"author": hist_msg["author"]}
             )
 
+    user_instructions = get_user_instructions(req.user_id)
     openai.beta.threads.messages.create(
         thread_id=thread_id,
         role="user",
@@ -151,6 +155,7 @@ async def ask_agent(req: Message):
     run = openai.beta.threads.runs.create(
         thread_id=thread_id,
         assistant_id=ASSISTANT_ID,
+        instructions=user_instructions,
         metadata={"user_id": req.user_id}
     )
 
@@ -366,3 +371,14 @@ def search_brave(query: str) -> str:
         return formatted
     else:
         return "Aucun résultat trouvé via Brave Search."
+
+def get_user_instructions(user_id: str) -> Optional[str]:
+    ensure_db_connection()
+    try:
+        cursor.execute("SELECT instructions FROM user_profiles WHERE user_id = %s", (user_id,))
+        result = cursor.fetchone()
+        if result:
+            return result[0]
+    except Exception as e:
+        print(f"Erreur lors de la récupération des instructions utilisateur : {e}")
+    return None

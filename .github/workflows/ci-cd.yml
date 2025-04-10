@@ -23,13 +23,13 @@ jobs:
       DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
 
     steps:
-      - name: 📥 Checkout code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: 🐳 Set up Docker Buildx
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: 📝 Create temporary .env file from secrets
+      - name: Create temporary .env file from secrets
         run: |
           echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
           echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
@@ -40,20 +40,25 @@ jobs:
           echo "OPENAI_ASSISTANT_ID=${{ secrets.OPENAI_ASSISTANT_ID }}" >> .env
           echo "DISCORD_BOT_TOKEN=${{ secrets.DISCORD_BOT_TOKEN }}" >> .env
 
-      - name: 🧪 Build Docker containers
+      - name: Build Docker containers
         run: docker compose build
 
-      - name: 🚀 Start all services
+      - name: Start all services
         run: docker compose up -d
 
-      - name: ⏱️ Wait for API to be ready
+      - name: Wait for API to be ready
         run: |
           echo "Waiting for API to be ready..."
           sleep 10
 
-      - name: ✅ Run tests inside API container
+      - name: Run tests inside API container
         run: docker compose exec -T api pytest test_api.py
 
-      - name: 🧹 Clean up
+      - name: Clean up
         if: always()
         run: docker compose down -v
+
+
+
+
+        
