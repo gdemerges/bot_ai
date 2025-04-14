@@ -313,7 +313,7 @@ def list_reservations():
         results = cursor.fetchall()
         if not results:
             return [{"message": "Aucune réservation à venir."}]
-    return [{"date": r[0].isoformat() if r[0] else None, "hour": r[1], "reserved_by": r[2] or "Inconnu"} for r in results]
+        return [{"date": r[0].isoformat() if r[0] else None, "hour": r[1], "reserved_by": r[2] or "Inconnu"} for r in results]
     except Exception as e:
         if conn:
             conn.rollback()
