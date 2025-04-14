@@ -50,14 +50,15 @@ cursor = None
 
 def ensure_db_connection():
     global conn, cursor
-    if conn is None or cursor is None:
-        try:
+    try:
+        if conn is None or conn.closed:
             conn = get_db_connection()
+        if cursor is None or cursor.closed:
             cursor = conn.cursor()
-        except Exception as e:
-            print("Erreur reconnexion base :", e)
-            conn = None
-            cursor = None
+    except Exception as e:
+        print("Erreur reconnexion base :", e)
+        conn = None
+        cursor = None
 
 # Pydantic models
 class AskRequest(BaseModel):
@@ -111,12 +112,13 @@ def cancel_active_runs(thread_id: str):
 def preprocess_date(text_date: str) -> str:
     text_date = text_date.lower().strip()
 
-    if "demain" in text_date:
-        return (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    today = datetime.now()
+    if "après-demain" in text_date:
+        return (today + timedelta(days=2)).strftime("%Y-%m-%d")
+    elif "demain" in text_date:
+        return (today + timedelta(days=1)).strftime("%Y-%m-%d")
     elif "aujourd" in text_date:
-        return datetime.now().strftime("%Y-%m-%d")
-    elif "après-demain" in text_date:
-        return (datetime.now() + timedelta(days=2)).strftime("%Y-%m-%d")
+        return today.strftime("%Y-%m-%d")
 
     return text_date
 
@@ -168,7 +170,7 @@ async def ask_agent(req: Message):
                 func_name = call.function.name
                 arguments = json.loads(call.function.arguments)
                 if func_name == "book_box":
-                    reserved_by = arguments.get("reserved_by") or req.history[-1].get("author", req.user_id)
+                    reserved_by = arguments.get("reserved_by") or next((msg["author"] for msg in reversed(req.history) if msg["role"] == "user"), req.user_id)
                     result = book_box_logic(date=arguments["date"], hour=arguments["hour"], reserved_by=reserved_by)
                 elif func_name == "report_absence":
                     try:
@@ -236,8 +238,10 @@ async def ask_agent(req: Message):
     }
 
 # Logic métier pour réserver un box
-def book_box_logic(date: str, hour: str, reserved_by: str = "Agent"):
+def book_box_logic(date: str, hour: str, reserved_by: str = None):
     ensure_db_connection()
+    if not reserved_by:
+        reserved_by = "Inconnu"
     cursor.execute("""
         INSERT INTO reservations (date, hour, reserved_by)
         VALUES (%s, %s, %s)
@@ -265,7 +269,16 @@ def get_reservations():
     results = cursor.fetchall()
     if not results:
         return [{"message": "Aucune réservation à venir."}]
-    return [{"date": r[0].isoformat(), "hour": r[1], "reserved_by": r[2]} for r in results]
+    response = []
+    for r in results:
+        try:
+            date = r[0].isoformat() if r[0] else "Date inconnue"
+            hour = r[1] or "Heure inconnue"
+            reserved_by = r[2] or "Inconnu"
+            response.append({"date": date, "hour": hour, "reserved_by": reserved_by})
+        except Exception as e:
+            print("Erreur lors du traitement d'une ligne de réservation :", e)
+    return response
 
 # Endpoint pour ajouter une réservation manuellement (Streamlit)
 @app.post("/book_box")
@@ -300,7 +313,7 @@ def list_reservations():
         results = cursor.fetchall()
         if not results:
             return [{"message": "Aucune réservation à venir."}]
-        return [{"date": r[0].isoformat(), "hour": r[1], "reserved_by": r[2]} for r in results]
+    return [{"date": r[0].isoformat() if r[0] else None, "hour": r[1], "reserved_by": r[2] or "Inconnu"} for r in results]
     except Exception as e:
         if conn:
             conn.rollback()

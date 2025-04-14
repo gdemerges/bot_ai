@@ -73,73 +73,71 @@ async def on_ready():
 async def on_message(message):
     if message.author == bot.user:
         return
-    
+
     is_dm = message.guild is None
     is_mention = bot.user.mention in message.content
+    is_kim = str(message.author.id) == "1192414156243091609"
+    should_respond = is_dm or is_mention or is_kim
 
-    if is_dm or is_mention:
-        if message.attachments:
-            await message.channel.send("📁 Fichier reçu. Traitement en cours...")
- 
-            for attachment in message.attachments:
-                file_path = f"/tmp/{attachment.filename}"
-                await attachment.save(file_path)
- 
-                try:
-                    client = OpenAI()
-                    vectorstore_id = os.getenv("OPENAI_VECTORSTORE_ID")
-                    with open(file_path, "rb") as f:
-                        client.vector_stores.file_batches.upload_and_poll(
-                            vector_store_id=vectorstore_id,
-                            files=[f]
-                        )
-                    await message.channel.send(f"✅ Fichier ajouté au vector store : {attachment.filename}")
-                except Exception as e:
-                    await message.channel.send(f"❌ Erreur lors de l'ajout du fichier : {e}")
-                finally:
-                    os.remove(file_path)
-            return
- 
-        if not is_dm:
-            question = message.content.replace(bot.user.mention, "").strip()
-        else:
-            question = message.content.strip()
+    if not should_respond:
+        return
 
-        if not question:
-            await message.channel.send("Tu dois poser une question.")
-            return
-
-        async with message.channel.typing():
-            historique = []
-            async for msg in message.channel.history(limit=15, oldest_first=True):
-                if not msg.content:
-                    continue
-                role = "assistant" if msg.author == bot.user else "user"
-                historique.append({
-                    "author": msg.author.name,
-                    "content": msg.content,
-                    "role": role
-                })
+    if message.attachments:
+        await message.channel.send("📁 Fichier reçu. Traitement en cours...")
+        for attachment in message.attachments:
+            file_path = f"/tmp/{attachment.filename}"
+            await attachment.save(file_path)
 
             try:
-                payload = {
-                    "message": question,
-                    "user_id": str(message.author.id),
-                    "history": historique  
-                }
-
-                async with httpx.AsyncClient(timeout=100.0) as client:
-                    response = await client.post(API_URL, json=payload)
-
-                if response.status_code == 200:
-                    result = response.json().get("response", "Aucune réponse.")
-                    if is_dm:
-                        await message.channel.send(result)
-                    else:
-                        await message.reply(result)
-                else:
-                    await message.channel.send("❌ Erreur API.")
+                client = OpenAI()
+                vectorstore_id = os.getenv("OPENAI_VECTORSTORE_ID")
+                with open(file_path, "rb") as f:
+                    client.vector_stores.file_batches.upload_and_poll(
+                        vector_store_id=vectorstore_id,
+                        files=[f]
+                    )
+                await message.channel.send(f"✅ Fichier ajouté au vector store : {attachment.filename}")
             except Exception as e:
-                await message.channel.send(f"❌ Erreur : {e}")
+                await message.channel.send(f"❌ Erreur lors de l'ajout du fichier : {e}")
+            finally:
+                os.remove(file_path)
+        return
+
+    question = message.content.replace(bot.user.mention, "").strip() if not is_dm else message.content.strip()
+    if not question:
+        await message.channel.send("Tu dois poser une question.")
+        return
+
+    async with message.channel.typing():
+        historique = []
+        async for msg in message.channel.history(limit=15, oldest_first=True):
+            if not msg.content:
+                continue
+            role = "assistant" if msg.author == bot.user else "user"
+            historique.append({
+                "author": msg.author.name,
+                "content": msg.content,
+                "role": role
+            })
+
+        try:
+            payload = {
+                "message": question,
+                "user_id": str(message.author.id),
+                "history": historique
+            }
+            async with httpx.AsyncClient(timeout=100.0) as client:
+                response = await client.post(API_URL, json=payload)
+
+            if response.status_code == 200:
+                result = response.json().get("response", "Aucune réponse.")
+                if is_dm:
+                    await message.channel.send(result)
+                else:
+                    await message.reply(result)
+            else:
+                await message.channel.send("❌ Erreur API.")
+        except Exception as e:
+            await message.channel.send(f"❌ Erreur : {e}")
 
 bot.run(TOKEN)
