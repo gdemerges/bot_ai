@@ -135,6 +135,8 @@ async def on_message(message):
                     await message.channel.send(result)
                 else:
                     await message.reply(result)
+            elif response.status_code == 503:
+                await message.channel.send("Service indisponible : base de données hors ligne")
             else:
                 await message.channel.send("❌ Erreur API.")
         except Exception as e:
