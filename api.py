@@ -54,11 +54,16 @@ def ensure_db_connection():
         if conn is None or conn.closed:
             conn = get_db_connection()
         if cursor is None or cursor.closed:
-            cursor = conn.cursor()
+            cursor = conn.cursor() if conn else None
+        if conn is None or cursor is None:
+            raise HTTPException(status_code=503, detail="Base de données indisponible")
+    except HTTPException:
+        raise
     except Exception as e:
         print("Erreur reconnexion base :", e)
         conn = None
         cursor = None
+        raise HTTPException(status_code=503, detail="Base de données indisponible")
 
 # Pydantic models
 class AskRequest(BaseModel):
@@ -85,6 +90,8 @@ def root():
 
 def get_or_create_thread(user_id: str) -> str:
     ensure_db_connection()
+    if cursor is None:
+        raise HTTPException(status_code=503, detail="Base de données indisponible")
     cursor.execute("SELECT thread_id FROM user_threads WHERE user_id = %s", (user_id,))
     result = cursor.fetchone()
     if result:
