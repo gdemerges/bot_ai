@@ -314,9 +314,16 @@ def get_absences():
     try:
         cursor.execute("SELECT name, date FROM absences WHERE date >= CURRENT_DATE ORDER BY date, name")
         results = cursor.fetchall()
+        # Always return a homogeneous list of {name, date}
         if not results:
-            return [{"message": "Aucune absence à venir enregistrée."}]
-        return [{"name": r[0], "date": r[1].isoformat()} for r in results]
+            return []
+        return [
+            {
+                "name": r[0],
+                "date": (r[1].isoformat() if r[1] else None)
+            }
+            for r in results
+        ]
     except Exception as e:
         if conn:
             conn.rollback() 
@@ -329,9 +336,17 @@ def list_reservations():
     try:
         cursor.execute("SELECT date, hour, reserved_by FROM reservations WHERE (date > CURRENT_DATE OR (date = CURRENT_DATE AND hour >= TO_CHAR(NOW(), 'HH24:MI'))) ORDER BY date, hour")
         results = cursor.fetchall()
+        # Always return a homogeneous list of {date, hour, reserved_by}
         if not results:
-            return [{"message": "Aucune réservation à venir."}]
-        return [{"date": r[0].isoformat() if r[0] else None, "hour": r[1], "reserved_by": r[2] or "Inconnu"} for r in results]
+            return []
+        return [
+            {
+                "date": (r[0].isoformat() if r[0] else None),
+                "hour": r[1],
+                "reserved_by": (r[2] or "Inconnu"),
+            }
+            for r in results
+        ]
     except Exception as e:
         if conn:
             conn.rollback()

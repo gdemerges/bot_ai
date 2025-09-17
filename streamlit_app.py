@@ -117,9 +117,20 @@ with tab1:
         data = response.json()
         if data:
             df = pd.DataFrame(data)
-            df['date'] = pd.to_datetime(df['date'])
+            df['date'] = pd.to_datetime(df['date'], errors='coerce')
             df = df.sort_values(by=["date", "hour"])
-            st.dataframe(df)
+            st.dataframe(
+                df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "date": st.column_config.DatetimeColumn("📅 Date", format="YYYY-MM-DD"),
+                    "hour": st.column_config.TextColumn("🕒 Heure"),
+                    "reserved_by": st.column_config.TextColumn("👤 Réservé par"),
+                },
+            )
+            csv = df.to_csv(index=False).encode()
+            st.download_button("⬇️ Export CSV", csv, "reservations.csv", "text/csv")
         else:
             st.info("Aucune réservation pour le moment.")
     else:
@@ -174,7 +185,17 @@ with tab2:
             if sort_cols:
                 df_abs = df_abs.sort_values(by=sort_cols)
 
-            st.dataframe(df_abs)
+            st.dataframe(
+                df_abs,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "date": st.column_config.DatetimeColumn("📅 Date", format="YYYY-MM-DD"),
+                    "name": st.column_config.TextColumn("👤 Nom"),
+                },
+            )
+            csv_abs = df_abs.to_csv(index=False).encode()
+            st.download_button("⬇️ Export CSV", csv_abs, "absences.csv", "text/csv", key="dl_abs_csv")
         else:
             st.info("Aucune absence enregistrée pour le moment.")
     else:
