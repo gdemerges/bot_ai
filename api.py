@@ -18,8 +18,8 @@ from datetime import timedelta
 import requests
 from db import get_db_connection
 
-client = OpenAI()
 load_dotenv()
+client = OpenAI()
 
 # Initialisation FastAPI
 app = FastAPI()
@@ -41,7 +41,6 @@ app.add_middleware(
 )
 
 # Configuration OpenAI
-openai.api_key = os.getenv("OPENAI_API_KEY")
 ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
 
 # Connexion PostgreSQL
@@ -97,7 +96,7 @@ def get_or_create_thread(user_id: str) -> str:
     if result:
         return result[0], False
     else:
-        thread = openai.beta.threads.create(metadata={"user_id": user_id})
+        thread = client.beta.threads.create(metadata={"user_id": user_id})
         thread_id = thread.id
         user_instructions = get_user_instructions(user_id)
         # Les instructions spécifiques seront injectées plus tard dans run.create
@@ -108,11 +107,11 @@ def get_or_create_thread(user_id: str) -> str:
 
 def cancel_active_runs(thread_id: str):
     try:
-        existing_runs = openai.beta.threads.runs.list(thread_id=thread_id).data
+        existing_runs = client.beta.threads.runs.list(thread_id=thread_id).data
         for run in existing_runs:
             if run.status in ["queued", "in_progress", "requires_action"]:
                 print(f"Annulation du run actif : {run.id}")
-                openai.beta.threads.runs.cancel(thread_id=thread_id, run_id=run.id)
+                client.beta.threads.runs.cancel(thread_id=thread_id, run_id=run.id)
     except Exception as e:
         print(f"Erreur lors de l’annulation des runs actifs : {e}")
 
@@ -146,22 +145,30 @@ async def ask_agent(req: Message):
 
     if is_new_thread:
         for hist_msg in req.history:
-            openai.beta.threads.messages.create(
+            client.beta.threads.messages.create(
                 thread_id=thread_id,
                 role=hist_msg.get("role", "user"),
                 content=hist_msg["content"],
                 metadata={"author": hist_msg["author"]}
             )
 
-    user_instructions = get_user_instructions(req.user_id)
-    openai.beta.threads.messages.create(
+    last_user_author = None
+    for _m in reversed(req.history):
+        if _m.get("role") == "user" and _m.get("author"):
+            last_user_author = _m.get("author")
+            break
+    client.beta.threads.messages.create(
         thread_id=thread_id,
         role="user",
         content=req.message,
-        metadata={"author": req.user_id, "author_name": req.history[-1].get("author", req.user_id)}
+        metadata={
+            "author": req.user_id,
+            "author_name": last_user_author or req.user_id
+        }
     )
 
-    run = openai.beta.threads.runs.create(
+    user_instructions = get_user_instructions(req.user_id)
+    run = client.beta.threads.runs.create(
         thread_id=thread_id,
         assistant_id=ASSISTANT_ID,
         instructions=user_instructions,
@@ -182,7 +189,11 @@ async def ask_agent(req: Message):
                 elif func_name == "report_absence":
                     try:
                         parsed_date = normalize_date(arguments["date"])
-                        name = arguments.get("name") or req.history[-1].get("author", req.user_id)
+                        if not arguments.get("name"):
+                            _last_u = next((m.get("author") for m in reversed(req.history) if m.get("role") == "user" and m.get("author")), None)
+                            name = _last_u or req.user_id
+                        else:
+                            name = arguments.get("name")
                         result = report_absence_logic(name=name, date=parsed_date)
                     except Exception as e:
                         result = f"Erreur dans la compréhension de la date : {e}"
@@ -226,18 +237,18 @@ async def ask_agent(req: Message):
                     result = search_brave(arguments["query"])
 
                 outputs.append({"tool_call_id": call.id, "output": result})
-            run = openai.beta.threads.runs.submit_tool_outputs(
+            run = client.beta.threads.runs.submit_tool_outputs(
                 thread_id=thread_id,
                 run_id=run.id,
                 tool_outputs=outputs
             )
         else:
-            run = openai.beta.threads.runs.retrieve(
+            run = client.beta.threads.runs.retrieve(
                 thread_id=thread_id,
                 run_id=run.id
             )
 
-    messages = openai.beta.threads.messages.list(thread_id=thread_id)
+    messages = client.beta.threads.messages.list(thread_id=thread_id)
     return {
         "response": messages.data[0].content[0].text.value,
         "thread_id": thread_id,

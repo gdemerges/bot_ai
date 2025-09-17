@@ -9,9 +9,35 @@ import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
-JWT_SECRET = os.getenv("JWT_SECRET")
+# --- Secrets helper (works on Streamlit Cloud & locally) ---
+def _get_secret(key: str, default: str | None = None):
+    try:
+        if hasattr(st, "secrets") and st.secrets is not None:
+            val = st.secrets.get(key)
+            if val is not None:
+                return val
+    except Exception:
+        pass
+    return os.getenv(key, default)
+
+JWT_SECRET = _get_secret("JWT_SECRET")
 
 st.set_page_config(page_title="Réservations des box", layout="centered")
+
+API_URL = _get_secret("API_URL", "http://localhost:8000")
+
+if API_URL.endswith("/ask_agent"):
+    API_URL = API_URL[: -len("/ask_agent")]
+API_URL = API_URL.rstrip("/")
+
+if _get_secret("DEBUG_AUTH", "false").lower() == "true":
+    with st.sidebar.expander("🔎 Debug auth (masqué en prod)"):
+        st.write({
+            "JWT_SECRET_set": bool(JWT_SECRET),
+            "AUTH_USERNAME_set": bool(_get_secret("AUTH_USERNAME")),
+            "AUTH_PASSWORD_set": bool(_get_secret("AUTH_PASSWORD")),
+            "API_URL": API_URL,
+        })
 
 tab1, tab2, tab3 = st.tabs([
     "📅 Réservations", 
@@ -40,8 +66,8 @@ def login_form():
     login_btn = st.sidebar.button("Se connecter")
 
     if login_btn:
-        valid_username = os.getenv("AUTH_USERNAME")
-        valid_password = os.getenv("AUTH_PASSWORD")
+        valid_username = _get_secret("AUTH_USERNAME")
+        valid_password = _get_secret("AUTH_PASSWORD")
         if username == valid_username and password == valid_password:
             token = generate_token(username)
             st.session_state["auth_token"] = token
@@ -58,11 +84,12 @@ def check_auth():
             return True
     return False
 
+if not JWT_SECRET:
+    st.sidebar.error("JWT_SECRET manquant : définissez-le dans Settings → Secrets sur Streamlit Cloud.")
+
 if not check_auth():
     login_form()
     st.stop()
-
-API_URL = "http://api:8000"
 
 with tab1:
     st.header("➕ Ajouter une réservation")
@@ -119,8 +146,34 @@ with tab2:
         abs_data = response_abs.json()
         if abs_data:
             df_abs = pd.DataFrame(abs_data)
-            df_abs['date'] = pd.to_datetime(df_abs['date'])
-            df_abs = df_abs.sort_values(by=["date", "name"])
+
+            # Normaliser les noms de colonnes possibles pour la date
+            if 'date' not in df_abs.columns:
+                if 'absence_date' in df_abs.columns:
+                    df_abs['date'] = df_abs['absence_date']
+                elif 'created_at' in df_abs.columns:
+                    df_abs['date'] = df_abs['created_at']
+                elif 'day' in df_abs.columns:
+                    df_abs['date'] = df_abs['day']
+                else:
+                    st.warning("Le champ 'date' est absent de la réponse de l'API. Affichage brut des données.")
+                    st.dataframe(df_abs)
+                    st.stop()
+
+            # Normaliser le nom de l'apprenant
+            if 'name' not in df_abs.columns:
+                if 'student' in df_abs.columns:
+                    df_abs['name'] = df_abs['student']
+                elif 'reserved_by' in df_abs.columns:
+                    # fallback très permissif si l'API renvoie un autre libellé
+                    df_abs['name'] = df_abs['reserved_by']
+
+            # Conversion de la colonne date et tri
+            df_abs['date'] = pd.to_datetime(df_abs['date'], errors='coerce', utc=True).dt.tz_convert(None)
+            sort_cols = [c for c in ["date", "name"] if c in df_abs.columns]
+            if sort_cols:
+                df_abs = df_abs.sort_values(by=sort_cols)
+
             st.dataframe(df_abs)
         else:
             st.info("Aucune absence enregistrée pour le moment.")
@@ -139,7 +192,7 @@ with tab3:
             with open(f"/tmp/{uploaded_file.name}", "wb") as f:
                 f.write(uploaded_file.getbuffer())
 
-            vectorstore_id = os.getenv("OPENAI_VECTORSTORE_ID")
+            vectorstore_id = _get_secret("OPENAI_VECTORSTORE_ID")
             with open(f"/tmp/{uploaded_file.name}", "rb") as f:
                 client.vector_stores.file_batches.upload_and_poll(
                     vector_store_id=vectorstore_id,
@@ -151,7 +204,7 @@ with tab3:
 
     st.header("📂 Fichiers dans le vector store")
     try:
-        vectorstore_id = os.getenv("OPENAI_VECTORSTORE_ID")
+        vectorstore_id = _get_secret("OPENAI_VECTORSTORE_ID")
         client = OpenAI()
         file_list = client.vector_stores.files.list(vector_store_id=vectorstore_id)
         files = list(file_list)
@@ -174,4 +227,4 @@ with tab3:
 
 if st.sidebar.button("🚪 Se déconnecter"):
     st.session_state.pop("auth_token", None)
-    st.experimental_rerun()
+    st.rerun()
