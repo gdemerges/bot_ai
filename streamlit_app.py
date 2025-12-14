@@ -2,13 +2,11 @@ import streamlit as st
 import requests
 import pandas as pd
 import os
-import openai
 from openai import OpenAI
-import jwt
-import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
+
 # --- Secrets helper (works on Streamlit Cloud & locally) ---
 def _get_secret(key: str, default: str | None = None):
     try:
@@ -20,8 +18,6 @@ def _get_secret(key: str, default: str | None = None):
         pass
     return os.getenv(key, default)
 
-JWT_SECRET = _get_secret("JWT_SECRET")
-
 st.set_page_config(page_title="Réservations des box", layout="centered")
 
 API_URL = _get_secret("API_URL", "http://localhost:8000")
@@ -30,66 +26,15 @@ if API_URL.endswith("/ask_agent"):
     API_URL = API_URL[: -len("/ask_agent")]
 API_URL = API_URL.rstrip("/")
 
-if _get_secret("DEBUG_AUTH", "false").lower() == "true":
-    with st.sidebar.expander("🔎 Debug auth (masqué en prod)"):
-        st.write({
-            "JWT_SECRET_set": bool(JWT_SECRET),
-            "AUTH_USERNAME_set": bool(_get_secret("AUTH_USERNAME")),
-            "AUTH_PASSWORD_set": bool(_get_secret("AUTH_PASSWORD")),
-            "API_URL": API_URL,
-        })
+# Debug: afficher l'URL utilisée
+with st.sidebar:
+    st.caption(f"🔗 API: {API_URL}")
 
 tab1, tab2, tab3 = st.tabs([
     "📅 Réservations", 
     "🚫 Absences", 
     "📂 Vector Store"
 ])
-
-def generate_token(username: str):
-    payload = {
-        "user": username,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)
-    }
-    return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
-
-def verify_token(token: str):
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-        return payload["user"]
-    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-        return None
-
-def login_form():
-    st.sidebar.title("🔐 Connexion")
-    username = st.sidebar.text_input("Nom d'utilisateur")
-    password = st.sidebar.text_input("Mot de passe", type="password")
-    login_btn = st.sidebar.button("Se connecter")
-
-    if login_btn:
-        valid_username = _get_secret("AUTH_USERNAME")
-        valid_password = _get_secret("AUTH_PASSWORD")
-        if username == valid_username and password == valid_password:
-            token = generate_token(username)
-            st.session_state["auth_token"] = token
-            st.success("Connexion réussie ✅")
-            st.rerun()
-        else:
-            st.error("Identifiants invalides ❌")
-
-def check_auth():
-    token = st.session_state.get("auth_token")
-    if token:
-        user = verify_token(token)
-        if user:
-            return True
-    return False
-
-if not JWT_SECRET:
-    st.sidebar.error("JWT_SECRET manquant : définissez-le dans Settings → Secrets sur Streamlit Cloud.")
-
-if not check_auth():
-    login_form()
-    st.stop()
 
 with tab1:
     st.header("➕ Ajouter une réservation")
@@ -202,50 +147,153 @@ with tab2:
         st.error("Erreur lors de la récupération des absences.")
 
 with tab3:
-    st.header("📄 Ajouter un document à la base de connaissances")
-    uploaded_file = st.file_uploader("Choisir un fichier", type=["pdf", "docx", "txt"])
-
-    if uploaded_file is not None:
-        st.info("📤 Téléversement en cours...")
-        try:
-            client = OpenAI()
-
-            with open(f"/tmp/{uploaded_file.name}", "wb") as f:
-                f.write(uploaded_file.getbuffer())
-
-            vectorstore_id = _get_secret("OPENAI_VECTORSTORE_ID")
-            with open(f"/tmp/{uploaded_file.name}", "rb") as f:
-                client.vector_stores.file_batches.upload_and_poll(
-                    vector_store_id=vectorstore_id,
-                    files=[f]
-                )
-            st.success(f"✅ Fichier '{uploaded_file.name}' ajouté au vector store.")
-        except Exception as e:
-            st.error(f"❌ Erreur lors de l'ajout : {e}")
-
-    st.header("📂 Fichiers dans le vector store")
+    st.header("🤖 RAG - Base de connaissances")
+    
+    # Statistiques du RAG
+    col1, col2, col3 = st.columns(3)
     try:
-        vectorstore_id = _get_secret("OPENAI_VECTORSTORE_ID")
-        client = OpenAI()
-        file_list = client.vector_stores.files.list(vector_store_id=vectorstore_id)
-        files = list(file_list)
-
-        if files:
-            file_data = []
-            for f in files:
-                full_file = client.files.retrieve(f.id)
-                file_data.append({
-                    "Nom du fichier": full_file.filename,
-                    "ID": full_file.id,
-                    "Statut": f.status
-                })
-            df_files = pd.DataFrame(file_data)
-            st.dataframe(df_files)
+        stats_response = requests.get(f"{API_URL}/rag/stats")
+        if stats_response.status_code == 200:
+            stats = stats_response.json()
+            with col1:
+                st.metric("📊 Documents", stats.get("total_chunks", 0))
+            with col2:
+                st.metric("🧠 Embeddings", stats.get("embedding_provider", "N/A"))
+            with col3:
+                st.metric("💬 LLM", stats.get("llm_provider", "N/A"))
         else:
-            st.info("Aucun fichier actuellement dans le vector store.")
+            st.info("Statistiques RAG non disponibles")
     except Exception as e:
-        st.error(f"❌ Erreur lors de la récupération des fichiers : {e}")
-
-if st.sidebar.button("🚪 Se déconnecter"):
-    st.session_state.pop("auth_token", None)
-    st.rerun()
+        st.warning(f"RAG non accessible: {e}")
+    
+    st.divider()
+    
+    # Section: Poser une question au RAG
+    st.subheader("❓ Poser une question")
+    with st.form("rag_query"):
+        query = st.text_area("Votre question", placeholder="Ex: Quelles sont les règles de réservation ?")
+        col_q1, col_q2 = st.columns(2)
+        with col_q1:
+            top_k = st.slider("Nombre de sources", 1, 10, 5)
+        with col_q2:
+            use_reranker = st.checkbox("Utiliser le reranker", value=True)
+        
+        submit_query = st.form_submit_button("🔍 Rechercher")
+        
+        if submit_query and query:
+            with st.spinner("Recherche en cours..."):
+                try:
+                    response = requests.post(
+                        f"{API_URL}/rag/query",
+                        json={
+                            "query": query,
+                            "top_k": top_k,
+                            "use_reranker": use_reranker
+                        },
+                        timeout=60
+                    )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        st.success("✅ Réponse générée")
+                        st.markdown("### 💡 Réponse")
+                        st.write(result.get("answer", "Aucune réponse"))
+                        
+                        # Afficher les sources
+                        sources = result.get("sources", [])
+                        if sources:
+                            st.markdown("### 📚 Sources utilisées")
+                            for i, source in enumerate(sources, 1):
+                                with st.expander(f"Source {i} - Score: {source.get('score', 0):.3f}"):
+                                    st.text(source.get("content", ""))
+                                    st.caption(f"Métadonnées: {source.get('metadata', {})}")
+                    else:
+                        st.error(f"Erreur: {response.status_code}")
+                except Exception as e:
+                    st.error(f"❌ Erreur: {e}")
+    
+    st.divider()
+    
+    # Section: Upload de documents
+    st.subheader("📤 Ajouter des documents")
+    
+    # Mode 1: Upload de fichier
+    uploaded_file = st.file_uploader(
+        "Uploader un fichier", 
+        type=["pdf", "docx", "txt", "md"],
+        help="Formats supportés: PDF, DOCX, TXT, MD"
+    )
+    
+    if uploaded_file is not None:
+        if st.button("📁 Ajouter au RAG"):
+            with st.spinner("Traitement du document..."):
+                try:
+                    files = {"file": uploaded_file.getvalue()}
+                    response = requests.post(
+                        f"{API_URL}/rag/upload",
+                        files={"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+                    )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        st.success(f"✅ {result.get('message', 'Document ajouté')}")
+                        st.info(f"📊 {result.get('chunk_count', 0)} chunks créés")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Erreur: {response.text}")
+                except Exception as e:
+                    st.error(f"❌ Erreur: {e}")
+    
+    # Mode 2: Texte direct
+    with st.expander("✍️ Ou ajouter du texte directement"):
+        with st.form("add_text_document"):
+            doc_content = st.text_area("Contenu du document", height=200)
+            doc_source = st.text_input("Nom du document", placeholder="Ex: reglement.txt")
+            submit_text = st.form_submit_button("Ajouter")
+            
+            if submit_text and doc_content:
+                try:
+                    response = requests.post(
+                        f"{API_URL}/rag/documents",
+                        json={
+                            "content": doc_content,
+                            "source": doc_source or "document_texte"
+                        }
+                    )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        st.success(f"✅ {result.get('message', 'Document ajouté')}")
+                        st.info(f"📊 {result.get('chunk_count', 0)} chunks créés")
+                    else:
+                        st.error(f"❌ Erreur: {response.text}")
+                except Exception as e:
+                    st.error(f"❌ Erreur: {e}")
+    
+    st.divider()
+    
+    # Section: Gestion du vector store
+    st.subheader("⚙️ Gestion")
+    col_manage1, col_manage2 = st.columns(2)
+    
+    with col_manage1:
+        if st.button("🔄 Rafraîchir les stats"):
+            st.rerun()
+    
+    with col_manage2:
+        if st.button("🗑️ Vider le vector store", type="secondary"):
+            if st.session_state.get("confirm_clear"):
+                try:
+                    response = requests.delete(f"{API_URL}/rag/clear")
+                    if response.status_code == 200:
+                        st.success("✅ Vector store vidé")
+                        st.session_state.pop("confirm_clear")
+                        st.rerun()
+                    else:
+                        st.error("❌ Erreur lors du vidage")
+                except Exception as e:
+                    st.error(f"❌ Erreur: {e}")
+            else:
+                st.session_state["confirm_clear"] = True
+                st.warning("⚠️ Cliquez à nouveau pour confirmer")
+                st.rerun()

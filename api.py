@@ -22,7 +22,18 @@ load_dotenv()
 client = OpenAI()
 
 # Initialisation FastAPI
-app = FastAPI()
+app = FastAPI(
+    title="Bot AI API",
+    description="API pour le bot IA avec support RAG et Ollama",
+    version="2.0.0"
+)
+
+# Importer et inclure le router RAG
+try:
+    from rag.api import router as rag_router
+    app.include_router(rag_router)
+except ImportError as e:
+    print(f"Module RAG non disponible: {e}")
  
 # Monitoring via Prometheus
 try:

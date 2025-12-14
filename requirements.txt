@@ -1,16 +1,37 @@
+# Core API
 fastapi
 uvicorn
-openai
-psycopg2-binary
-python-dotenv
 pydantic
-requests
+python-dotenv
+python-multipart
+
+# Database
+psycopg2-binary
+
+# AI/LLM
+openai
+httpx
+
+# Discord Bot
 discord.py
-streamlit
-asyncpraw
-pandas
-langchain
-pypdf
-pytest
-prometheus-fastapi-instrumentator
+
+# Utilities
+requests
 PyJWT
+
+# Monitoring
+prometheus-fastapi-instrumentator
+
+# RAG dependencies
+chromadb
+sentence-transformers
+pypdf
+python-docx
+
+# Optional - Décommentez si nécessaire
+streamlit         
+# asyncpraw          # Reddit bot (si vous l'utilisez)
+# pandas             # Analyse de données (non utilisé actuellement)
+# langchain          # Framework LLM (remplacé par notre RAG custom)
+# pytest             # Tests (seulement en dev)
+# numpy              # Déjà installé par sentence-transformers

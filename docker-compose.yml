@@ -5,13 +5,17 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
+      - rag_data:/app/data
     env_file:
       - .env
     environment:
       - ENV=azure
+      - OLLAMA_BASE_URL=http://ollama:11434
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - bot_network
 
   streamlit:
     build: .
@@ -26,18 +30,43 @@ services:
       - ENV=azure
     depends_on:
       - api
+    networks:
+      - bot_network
 
   bot:
     build: .
     command: python bot.py 
     volumes:
       - ./seen_posts.txt:/app/seen_posts.txt
+      - ./bot.py:/app/bot.py
     env_file:
       - .env
     environment:
       - ENV=azure
+      - PYTHONUNBUFFERED=1
     depends_on:
       - api
+    networks:
+      - bot_network
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - bot_network
+    # Décommentez les lignes ci-dessous si vous avez un GPU NVIDIA sous Linux
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
 
   prometheus:
     image: prom/prometheus:latest
@@ -73,6 +102,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - bot_network
 
 volumes:
   pgdata:
+  ollama_data:
+  rag_data:
+
+networks:
+  bot_network:
+    driver: bridge
